@@ -1,0 +1,78 @@
+---
+client:
+  url: http://127.0.0.1:8080/api/v1
+  auth:
+    name: tenant123
+    key: 3e9bccb1-20cf-46be-963a-7091b3812646
+
+
+app:
+  loglevel: info
+  host: 0.0.0.0
+  port: 8080
+
+  # The `logging` section is optional and follows the standard logging configuration dictionary
+  # schema, see https://docs.python.org/3/library/logging.config.html#logging-config-dictschema
+  logging:
+    version: 1
+    disable_existing_loggers: false
+
+tasks:
+  celery:
+    broker_url: "redis://redis:6379"
+    result_backend: "redis://redis:6379"
+    worker_redirect_stdouts_level: "INFO"
+  locking:
+    url: "redis://redis:6379"
+  periodic:
+    fill-pools:
+      interval: 300
+    expire-sessions:
+      interval: 300
+
+database:
+  sqlalchemy:
+    sync_url: "sqlite:////app/mock.db"
+    async_url: "sqlite+aiosqlite:////app/mock.db"
+
+defaults:
+  session-lifetime: "6h"
+  session-lifetime-max: "12h"
+  node-quota: 10
+
+nodepools:
+  abstract:
+    mech-ansible:
+      mechanism:
+        type: "ansible"
+        ansible:
+          topdir: "/path/to/playbooks"
+          extra-vars:
+            nodepool: "{{ name }}"
+            template_name: "{{ name }}"
+    physical:
+      type: "physical"
+      extends: "mech-ansible"
+      reuse-nodes:
+        # This specifies which unused nodes can be reused for a pool. Keys map
+        # into the JSON data field of a node, values are matched for equality
+        # and are evaluated as Jinja templates filled with any other field of
+        # the pool in question but have to be of simple types like strings or
+        # integers.
+        architecture: "{{ architecture }}"
+      # Whether or not the playbooks should be run for single nodes, many
+      # playbook runs in parallel, or not (one playbook run for all nodes).
+      run-parallel: true
+      mechanism:
+        ansible:
+          provision:
+            playbook: "playbooks/baremetal/provision.yml"
+          # The `deprovision` section is optional, or can be nulled.
+          deprovision: ~
+    physical-x86_64:
+      extends: physical
+      fill-level: 5
+      architecture: x86_64
+  concrete:
+    physical-centos8stream-x86_64:
+      extends: "physical-x86_64"
